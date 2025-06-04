@@ -3,8 +3,8 @@ import os
 import numpy as np
 import torch
 from datasets import Dataset
-from torch import HuberLoss
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+from torch import nn, HuberLoss
+from transformers import AutoTokenizer, AutoModel, Trainer, TrainingArguments
 
 from src import config, utils
 
@@ -17,27 +17,33 @@ def compute_metrics_for_trainer(eval_pred):
     return {"r2": r2}
 
 
-class RegressionTrainer(Trainer):
-    def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.pop("labels")
-        outputs = model(**inputs)
-        logits = outputs.logits
+class BertRegressor(nn.Module):
+    def __init__(self, model_name):
+        super(BertRegressor, self).__init__()
+        self.bert = AutoModel.from_pretrained(
+            model_name,
+            hidden_dropout_prob=0.1,
+            attention_probs_dropout_prob=0.1
+        )
+        self.regressor = nn.Linear(self.bert.config.hidden_size, 1)
+        self.loss_fn = HuberLoss()
 
-        loss = HuberLoss()(logits.squeeze(-1),
-                           labels.squeeze(-1) if labels.ndim > 1 else labels)
+    def forward(self, input_ids, attention_mask, labels=None):
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.pooler_output
+        logits = self.regressor(pooled_output).squeeze(-1)
 
-        return (loss, outputs) if return_outputs else loss
+        if labels is not None:
+            loss = self.loss_fn(logits, labels)
+            return {"loss": loss, "logits": logits}
+        return {"logits": logits}
 
 
 def fine_tune_bert_with_trainer(train_df, val_df, text_column, target_column):
     utils.set_seed(config.SEED)
 
-    model = AutoModelForSequenceClassification.from_pretrained(
-        config.BERT_MODEL_NAME,
-        num_labels=1,
-        hidden_dropout_prob=0.1,
-        attention_probs_dropout_prob=0.1
-    )
+    # Use the custom BertRegressor instead of AutoModelForSequenceClassification
+    model = BertRegressor(config.BERT_MODEL_NAME)
     tokenizer = AutoTokenizer.from_pretrained(config.BERT_MODEL_NAME)
 
     def tokenize_function(examples):
@@ -54,9 +60,6 @@ def fine_tune_bert_with_trainer(train_df, val_df, text_column, target_column):
 
     train_tokenized_dataset = train_hf_dataset.map(tokenize_function, batched=True, remove_columns=[text_column])
     val_tokenized_dataset = val_hf_dataset.map(tokenize_function, batched=True, remove_columns=[text_column])
-
-    # train_tokenized_dataset.set_format("torch", columns=["input_ids", "attention_mask", "label"])
-    # val_tokenized_dataset.set_format("torch", columns=["input_ids", "attention_mask", "label"])
 
     training_args = TrainingArguments(
         output_dir=config.BERT_MODEL_DIR,
@@ -82,7 +85,8 @@ def fine_tune_bert_with_trainer(train_df, val_df, text_column, target_column):
         greater_is_better=True,
     )
 
-    trainer = RegressionTrainer(
+    # Use the standard Trainer instead of custom RegressionTrainer
+    trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_tokenized_dataset,
@@ -96,16 +100,19 @@ def fine_tune_bert_with_trainer(train_df, val_df, text_column, target_column):
 
     print("Fine-tuning finished. Saving the best model and tokenizer...")
     trainer.save_model()
+    tokenizer.save_pretrained(config.BERT_MODEL_DIR)
 
 
 def get_bert_predictions(texts_to_predict, model_path, tokenizer_path, batch_size=32):
     """
-    Generates predictions using a fine-tuned AutoModelForSequenceClassification model.
+    Generates predictions using a fine-tuned BertRegressor model.
     """
-    print(f"Loading AutoModelForSequenceClassification model from: {model_path}")
+    print(f"Loading BertRegressor model from: {model_path}")
     print(f"Loading BERT tokenizer from: {tokenizer_path}")
 
-    model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    # Load the custom model
+    model = BertRegressor(config.BERT_MODEL_NAME)
+    model.load_state_dict(torch.load(os.path.join(model_path, "pytorch_model.bin"), map_location=config.DEVICE))
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
 
     model.to(config.DEVICE)
@@ -121,7 +128,7 @@ def get_bert_predictions(texts_to_predict, model_path, tokenizer_path, batch_siz
 
         with torch.no_grad():
             outputs = model(**inputs)
-            preds = outputs.logits.cpu().numpy().flatten()
+            preds = outputs["logits"].cpu().numpy().flatten()
             predictions.extend(preds)
 
     return np.array(predictions)
@@ -142,7 +149,7 @@ if __name__ == '__main__':
     )
 
     print(
-        f"Training AutoModelForSequenceClassification on {len(train_data)} samples, validating on {len(val_data)} samples.")
+        f"Training BertRegressor on {len(train_data)} samples, validating on {len(val_data)} samples.")
     fine_tune_bert_with_trainer(train_data, val_data, config.TEXT_COLUMN, config.TARGET_COLUMN)
 
     print("Generating predictions for validation set with the best model...")

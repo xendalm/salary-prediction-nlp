@@ -75,38 +75,3 @@ def create_tabular_preprocessor(df_train: pd.DataFrame, num_features: list, cat_
         print("Loading tabular preprocessor...")
         preprocessor = joblib.load(config.TABULAR_PREPROCESSOR_PATH)
     return preprocessor
-
-
-if __name__ == '__main__':
-    from src.preprocessing import load_data, preprocess_data
-
-    train_df_raw, test_df_raw = load_data(config.TRAIN_FILE, config.TEST_FILE)
-    train_df = preprocess_data(train_df_raw, is_train=True)
-    config.EXPERIENCE_FROM_MEDIAN_FALLBACK = train_df['experience_from'].median()  # Set for test
-    test_df = preprocess_data(test_df_raw, is_train=False)
-
-    X_train_svd, X_test_svd = create_tfidf_svd_features(train_df[config.TEXT_COLUMN], test_df[config.TEXT_COLUMN],
-                                                        is_train=True)
-    print(f"Train SVD features shape: {X_train_svd.shape}")
-    print(f"Test SVD features shape: {X_test_svd.shape}")
-
-    _, X_test_svd_load = create_tfidf_svd_features(None, test_df[config.TEXT_COLUMN], is_train=False)
-    assert np.allclose(X_test_svd, X_test_svd_load)  # Check loading works
-    print("TF-IDF + SVD feature creation and loading test passed.")
-
-    tabular_preprocessor_train = create_tabular_preprocessor(
-        train_df,
-        config.NUMERICAL_FEATURES,
-        config.CATEGORICAL_FEATURES,
-        is_train=True
-    )
-    X_train_tabular_processed = tabular_preprocessor_train.transform(
-        train_df[config.NUMERICAL_FEATURES + config.CATEGORICAL_FEATURES])
-
-    tabular_preprocessor_test = create_tabular_preprocessor(None, None, None, is_train=False)
-    X_test_tabular_processed = tabular_preprocessor_test.transform(
-        test_df[config.NUMERICAL_FEATURES + config.CATEGORICAL_FEATURES])
-
-    print(f"Train tabular processed features shape: {X_train_tabular_processed.shape}")
-    print(f"Test tabular processed features shape: {X_test_tabular_processed.shape}")
-    print("Tabular preprocessor creation and loading test passed.")

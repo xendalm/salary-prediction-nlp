@@ -94,7 +94,7 @@ def run_autogluon_training(train_df, test_df, tuning_data=None):
     print("\n--- AutoGluon Leaderboard ---")
     if tuning_data is not None:
         leaderboard = predictor.leaderboard(tuning_data, silent=False)
-    else:  # If no tuning_data, leaderboard is on OOF preds from training data
+    else:
         leaderboard = predictor.leaderboard(train_df, silent=False)
     print(leaderboard)
 

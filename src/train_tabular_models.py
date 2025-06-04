@@ -62,7 +62,7 @@ def train_ridge_features(X_train, y_train, X_val, y_val):
     print("Training Ridge model on features...")
     model = Ridge(alpha=config.RIDGE_ALPHA, random_state=config.SEED)
     model.fit(X_train, y_train)
-    joblib.dump(model, config.RIDGE_FEATURES_MODEL_PATH)  # Define this path in config if needed
+    joblib.dump(model, config.RIDGE_FEATURES_MODEL_PATH)
     print(f"Ridge (features) model saved to {config.RIDGE_FEATURES_MODEL_PATH}")
 
     val_preds = model.predict(X_val)

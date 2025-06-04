@@ -17,16 +17,13 @@ and ensemble modeling.
 
 ## Project Structure
 
-- `data/`: Raw and processed datasets.
-- `notebooks/`: EDA and experimental model development.
-- `src/`: Source code for preprocessing, feature engineering, and model training scripts.
-- `models/`: Saved model artifacts.
-- `scripts/`: Runnable scripts for the main manual pipeline and the AutoGluon pipeline.
-- `submission/`: Generated submission files.
+- `data/`: raw and processed datasets
+- `src/`: source code for preprocessing, feature engineering, and model training scripts
+- `models/`: saved model artifacts
+- `scripts/`: scripts for the whole pipeline
+- `submission/`: generated submission files
 
 ## Methodology
-
-The core approach involves:
 
 1. **Preprocessing**:
     - cleaning text data using regexps

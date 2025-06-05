@@ -40,8 +40,7 @@ and ensemble modeling.
         - numerical features (`experience_from`)
         - TF-IDF + SVD features
         - predictions from the fine-tuned BERT model
-    - **Meta-Modeling (Stacking)**: Using Ridge regression as a meta-model to combine predictions from the BERT,
-      LightGBM, and CatBoost models.
+    - **Meta-Modeling (Stacking)**: using Ridge regression as a meta-model to combine predictions from BERT and tabular models.
 4. **Evaluation**: R2 score.
 
 An experimental pipeline using Auto Gluon has also been developed, which uses the same set of engineered features.
